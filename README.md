@@ -49,7 +49,7 @@ cargo --version
 
 # 4. Clone repo and build
 git clone <your-repo-url>
-cd reminder_tool
+cd focus-loop
 npm install
 npm run tauri:build
 ```
