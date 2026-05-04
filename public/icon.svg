@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#1a1d2e"/>
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#232740" stroke-width="28"/>
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#6c8fff" stroke-width="28"
+    stroke-linecap="round" stroke-dasharray="628" stroke-dashoffset="157"
+    transform="rotate(-90 256 256)"/>
+  <text x="256" y="278" text-anchor="middle" font-family="system-ui,sans-serif"
+    font-size="110" font-weight="700" fill="#e8eaf6" letter-spacing="-4">FL</text>
+</svg>
