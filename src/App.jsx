@@ -1,4 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from '@tauri-apps/plugin-notification'
 import './App.css'
 
 const DEFAULT_DRAFT = {
@@ -131,9 +136,9 @@ export default function App() {
     } catch (_) {}
   }, [getAudioCtx])
 
-  const notify = useCallback((title, body) => {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(title, { body, silent: true })
+  const notify = useCallback(async (title, body) => {
+    if (await isPermissionGranted()) {
+      sendNotification({ title, body })
     }
   }, [])
 
@@ -177,10 +182,10 @@ export default function App() {
     return () => clearInterval(intervalRef.current)
   }, [running, tick])
 
-  function applyAndStart() {
+  async function applyAndStart() {
     const fd = toSeconds(draft.focusMinutes, draft.focusSeconds)
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission()
+    if (!(await isPermissionGranted())) {
+      await requestPermission()
     }
     setConfig({ ...draft })
     setPhase('focus')
