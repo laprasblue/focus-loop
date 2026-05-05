@@ -6,6 +6,8 @@ import {
 } from '@tauri-apps/plugin-notification'
 import './App.css'
 
+const IS_TAURI = '__TAURI_INTERNALS__' in window
+
 const DEFAULT_DRAFT = {
   focusMinutes: 25,
   focusSeconds: 0,
@@ -28,6 +30,33 @@ function pad(n) {
 
 function toSeconds(minutes, seconds) {
   return Math.max(1, Number(minutes) * 60 + Number(seconds))
+}
+
+function StageLives({ current, total, infinite }) {
+  if (infinite) {
+    return (
+      <div className="stage-lives">
+        <span className="stage-label">STAGE</span>
+        <span className="life active">▶</span>
+        <span className="life-inf">∞</span>
+      </div>
+    )
+  }
+  const cap = Math.min(total, 8)
+  return (
+    <div className="stage-lives">
+      <span className="stage-label">STAGE</span>
+      {Array.from({ length: cap }, (_, i) => (
+        <span
+          key={i}
+          className={`life ${i < current - 1 ? 'done' : i === current - 1 ? 'active' : 'empty'}`}
+        >
+          {i < current - 1 ? '■' : i === current - 1 ? '▶' : '□'}
+        </span>
+      ))}
+      {total > cap && <span className="life-overflow">+{total - cap}</span>}
+    </div>
+  )
 }
 
 function ThemePicker({ theme, onChange }) {
@@ -112,7 +141,7 @@ export default function App() {
 
   const getAudioCtx = useCallback(() => {
     if (!audioCtxRef.current) {
-      audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)()
+      audioCtxRef.current = new AudioContext()
     }
     return audioCtxRef.current
   }, [])
@@ -137,8 +166,10 @@ export default function App() {
   }, [getAudioCtx])
 
   const notify = useCallback(async (title, body) => {
-    if (await isPermissionGranted()) {
-      sendNotification({ title, body })
+    if (IS_TAURI) {
+      if (await isPermissionGranted()) sendNotification({ title, body })
+    } else if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body, silent: true })
     }
   }, [])
 
@@ -184,8 +215,10 @@ export default function App() {
 
   async function applyAndStart() {
     const fd = toSeconds(draft.focusMinutes, draft.focusSeconds)
-    if (!(await isPermissionGranted())) {
-      await requestPermission()
+    if (IS_TAURI) {
+      if (!(await isPermissionGranted())) await requestPermission()
+    } else if ('Notification' in window && Notification.permission === 'default') {
+      await Notification.requestPermission()
     }
     setConfig({ ...draft })
     setPhase('focus')
@@ -235,16 +268,23 @@ export default function App() {
 
   const minutes = timeLeft !== null ? Math.floor(timeLeft / 60) : 0
   const seconds = timeLeft !== null ? timeLeft % 60 : 0
-  const loopLabel = config
-    ? (config.infiniteLoop ? '∞' : config.loops)
-    : (draft.infiniteLoop ? '∞' : draft.loops)
-
   const circumference = 2 * Math.PI * 54
+
+  const timerClass = [
+    'timer-section',
+    running ? 'is-running' : '',
+    done ? 'is-done' : '',
+  ].filter(Boolean).join(' ')
+
+  const phaseLabel = done ? '★ CLEAR!' : phase === 'focus' ? '▶ FOCUS' : '■ RELAX'
 
   return (
     <div className={`app ${config ? phase : 'idle'}`}>
       <header>
-        <h1>Focus Loop</h1>
+        <div className="header-left">
+          <h1>FOCUS LOOP</h1>
+          <span className="player-tag">PLAYER 1</span>
+        </div>
         <div className="header-actions">
           <ThemePicker theme={theme} onChange={setTheme} />
           {config && (
@@ -258,7 +298,7 @@ export default function App() {
       {showConfig && (
         <section className="config-panel">
           <div className="config-row">
-            <label>Focus time</label>
+            <label>Focus</label>
             <div className="time-inputs">
               <input type="number" min="0" max="99" value={draft.focusMinutes}
                 onChange={e => updateDraft('focusMinutes', e.target.value)} />
@@ -269,7 +309,7 @@ export default function App() {
             </div>
           </div>
           <div className="config-row">
-            <label>Relax time</label>
+            <label>Relax</label>
             <div className="time-inputs">
               <input type="number" min="0" max="99" value={draft.relaxMinutes}
                 onChange={e => updateDraft('relaxMinutes', e.target.value)} />
@@ -292,14 +332,19 @@ export default function App() {
               </label>
             </div>
           </div>
-          <button className="btn primary full" onClick={applyAndStart}>Start</button>
+          <button className="btn primary full" onClick={applyAndStart}>▶ START</button>
         </section>
       )}
 
       {config && (
-        <section className="timer-section">
-          <div className="phase-badge">{done ? 'Done!' : phase === 'focus' ? 'Focus' : 'Relax'}</div>
-          <div className="loop-counter">Loop {currentLoop} / {loopLabel}</div>
+        <section className={timerClass}>
+          <div className="phase-badge">{phaseLabel}</div>
+
+          <StageLives
+            current={currentLoop}
+            total={config.loops}
+            infinite={config.infiniteLoop}
+          />
 
           <div className="ring-wrapper">
             <svg className="ring" viewBox="0 0 120 120">
@@ -308,21 +353,36 @@ export default function App() {
                 strokeDasharray={circumference}
                 strokeDashoffset={circumference * (1 - progress / 100)} />
             </svg>
-            <div className="time-display">{pad(minutes)}:{pad(seconds)}</div>
+            <div className="time-display">
+              <span>{pad(minutes)}</span>
+              <span className={`colon${running ? ' blink' : ''}`}>:</span>
+              <span>{pad(seconds)}</span>
+            </div>
+          </div>
+
+          <div className="hp-bar-wrap">
+            <span className="hp-label">HP</span>
+            <div className="hp-track">
+              <div
+                className="hp-fill"
+                style={{ width: `${100 - progress}%` }}
+              />
+            </div>
+            <span className="hp-pct">{Math.round(100 - progress)}%</span>
           </div>
 
           <div className="controls">
             {done ? (
               <>
-                <button className="btn primary large" onClick={restartWithSameConfig}>Restart</button>
-                <button className="btn ghost" onClick={handleReset}>New session</button>
+                <button className="btn primary large" onClick={restartWithSameConfig}>★ RETRY</button>
+                <button className="btn ghost" onClick={handleReset}>↺ NEW</button>
               </>
             ) : (
               <>
                 <button className="btn primary large" onClick={handlePause}>
-                  {running ? 'Pause' : 'Resume'}
+                  {running ? '⏸ PAUSE' : '▶ RESUME'}
                 </button>
-                <button className="btn ghost" onClick={handleReset}>Reset</button>
+                <button className="btn ghost" onClick={handleReset}>↺ RESET</button>
               </>
             )}
           </div>

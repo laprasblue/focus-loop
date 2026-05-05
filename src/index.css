@@ -2,6 +2,7 @@
 
 html, body {
   height: 100%;
-  font: 16px/1.5 system-ui, 'Segoe UI', sans-serif;
-  -webkit-font-smoothing: antialiased;
+  font-family: 'VT323', monospace;
+  -webkit-font-smoothing: none;
+  image-rendering: pixelated;
 }
