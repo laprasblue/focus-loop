@@ -8,12 +8,13 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "build:dmg": "tauri build && hdiutil create -volname 'Focus Loop' -srcfolder 'src-tauri/target/release/bundle/macos/Focus Loop.app' -ov -format UDZO -o 'Focus Loop_1.0.0.dmg'",
+    "build:exe": "tauri build"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/vt323": "^5.2.7",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-notification": "^2.3.3",
     "react": "^19.2.5",

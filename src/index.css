@@ -6,3 +6,10 @@ html, body {
   -webkit-font-smoothing: none;
   image-rendering: pixelated;
 }
+
+[data-style="normal"],
+[data-style="normal"] body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  image-rendering: auto;
+}

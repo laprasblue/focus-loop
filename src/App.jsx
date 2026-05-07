@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import {
   isPermissionGranted,
   requestPermission,
@@ -7,6 +7,48 @@ import {
 import './App.css'
 
 const IS_TAURI = '__TAURI_INTERNALS__' in window
+
+const CONFETTI_COLORS = [
+  '#f472b6', '#fb7185', '#fda4af', '#f9a8d4',
+  '#e879f9', '#c084fc', '#ffffff', '#fbbf24', '#f0abfc',
+]
+
+function Confetti() {
+  const pieces = useMemo(() =>
+    Array.from({ length: 70 }, (_, i) => ({
+      id: i,
+      x: 10 + Math.random() * 80,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      size: 5 + Math.random() * 8,
+      duration: 2.5 + Math.random() * 2,
+      delay: Math.random() * 0.8,
+      drift: (Math.random() - 0.5) * 220,
+      rot: Math.random() * 360,
+      circle: Math.random() > 0.6,
+    }))
+  , [])
+
+  return (
+    <div className="confetti-container">
+      {pieces.map(p => (
+        <div
+          key={p.id}
+          className={`confetti-piece${p.circle ? ' circle' : ''}`}
+          style={{
+            left: `${p.x}%`,
+            width: `${p.size}px`,
+            height: p.circle ? `${p.size}px` : `${p.size * 0.55}px`,
+            background: p.color,
+            animationDuration: `${p.duration}s`,
+            animationDelay: `${p.delay}s`,
+            '--drift': `${p.drift}px`,
+            '--rot': `${p.rot}deg`,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
 
 const DEFAULT_DRAFT = {
   focusMinutes: 25,
@@ -22,6 +64,7 @@ const THEMES = [
   { id: 'light',  label: 'Light',  swatch: '#f0f2ff' },
   { id: 'forest', label: 'Forest', swatch: '#0d1f18' },
   { id: 'sunset', label: 'Sunset', swatch: '#1e0f1a' },
+  { id: 'thao',   label: 'Thảo ♡', swatch: '#f472b6' },
 ]
 
 function pad(n) {
@@ -59,9 +102,54 @@ function StageLives({ current, total, infinite }) {
   )
 }
 
+function FloatingHearts() {
+  const [hearts, setHearts] = useState([])
+
+  useEffect(() => {
+    const spawn = () => {
+      const id = Date.now() + Math.random()
+      const duration = 4 + Math.random() * 3
+      const heart = {
+        id,
+        x: 5 + Math.random() * 90,
+        size: 10 + Math.random() * 18,
+        duration,
+        wobble: (Math.random() - 0.5) * 60,
+        char: Math.random() > 0.4 ? '♡' : '♥',
+      }
+      setHearts(h => [...h, heart])
+      setTimeout(() => setHearts(h => h.filter(x => x.id !== id)), (duration + 0.3) * 1000)
+    }
+
+    spawn()
+    const interval = setInterval(spawn, 700)
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <div className="hearts-container">
+      {hearts.map(h => (
+        <span
+          key={h.id}
+          className="heart"
+          style={{
+            left: `${h.x}%`,
+            fontSize: `${h.size}px`,
+            animationDuration: `${h.duration}s`,
+            '--wobble': `${h.wobble}px`,
+          }}
+        >
+          {h.char}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function ThemePicker({ theme, onChange }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
+  const activeTheme = THEMES.find(t => t.id === theme)
 
   useEffect(() => {
     function onDown(e) {
@@ -78,18 +166,8 @@ function ThemePicker({ theme, onChange }) {
         onClick={() => setOpen(o => !o)}
         title="Switch theme"
       >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="8" r="3" fill="currentColor"/>
-          <circle cx="8" cy="2" r="1.5" fill="currentColor"/>
-          <circle cx="8" cy="14" r="1.5" fill="currentColor"/>
-          <circle cx="2" cy="8" r="1.5" fill="currentColor"/>
-          <circle cx="14" cy="8" r="1.5" fill="currentColor"/>
-          <circle cx="3.76" cy="3.76" r="1.5" fill="currentColor"/>
-          <circle cx="12.24" cy="12.24" r="1.5" fill="currentColor"/>
-          <circle cx="12.24" cy="3.76" r="1.5" fill="currentColor"/>
-          <circle cx="3.76" cy="12.24" r="1.5" fill="currentColor"/>
-        </svg>
-        Theme
+        <span className="theme-swatch" style={{ background: activeTheme?.swatch }} />
+        {activeTheme?.label ?? 'Theme'}
       </button>
       {open && (
         <div className="theme-dropdown">
@@ -116,6 +194,7 @@ function ThemePicker({ theme, onChange }) {
 
 export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('fl-theme') || 'dark')
+  const [styleMode, setStyleMode] = useState(() => localStorage.getItem('fl-style') || '8bit')
   const [draft, setDraft] = useState(DEFAULT_DRAFT)
   const [config, setConfig] = useState(null)
   const [showConfig, setShowConfig] = useState(true)
@@ -131,13 +210,18 @@ export default function App() {
   const stateRef = useRef({})
 
   useEffect(() => {
-    stateRef.current = { phase, currentLoop, config, running, done }
+    stateRef.current = { phase, currentLoop, config, running, done, theme }
   })
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('fl-theme', theme)
   }, [theme])
+
+  useLayoutEffect(() => {
+    document.documentElement.setAttribute('data-style', styleMode)
+    localStorage.setItem('fl-style', styleMode)
+  }, [styleMode])
 
   const getAudioCtx = useCallback(() => {
     if (!audioCtxRef.current) {
@@ -174,15 +258,22 @@ export default function App() {
   }, [])
 
   const tick = useCallback(() => {
+    let pendingNotify = null
+
     setTimeLeft(prev => {
       if (prev === null || prev > 1) return prev === null ? null : prev - 1
+      if (prev <= 0) return 0
 
-      const { phase: p, currentLoop: loop, config: cfg } = stateRef.current
+      const { phase: p, currentLoop: loop, config: cfg, theme: t } = stateRef.current
       if (!cfg) return 0
+      const isThao = t === 'thao'
 
       if (p === 'focus') {
         playBeep(660, 0.35, 2)
-        notify('Relax time!', `Take a ${cfg.relaxMinutes}m${cfg.relaxSeconds > 0 ? ` ${cfg.relaxSeconds}s` : ''} break`)
+        pendingNotify = {
+          title: isThao ? 'Nghỉ ngơi nha bé~ ♡' : 'Relax time!',
+          body:  isThao ? 'Bé Thảo xứng đáng được nghỉ lắm rồi ♡' : `Take a ${cfg.relaxMinutes}m${cfg.relaxSeconds > 0 ? ` ${cfg.relaxSeconds}s` : ''} break`,
+        }
         setPhase('relax')
         return toSeconds(cfg.relaxMinutes, cfg.relaxSeconds)
       } else {
@@ -190,18 +281,26 @@ export default function App() {
         const maxLoops = cfg.loops
         if (!cfg.infiniteLoop && nextLoop > maxLoops) {
           playBeep(440, 0.5, 3)
-          notify('Session complete!', `Finished ${maxLoops} loop${maxLoops > 1 ? 's' : ''}`)
+          pendingNotify = {
+            title: isThao ? '★ Xong rồi! Giỏi lắm bé Thảo! ♡' : 'Session complete!',
+            body:  isThao ? `${maxLoops} loop xong rồi, bé Thảo thật tuyệt vời! ♡` : `Finished ${maxLoops} loop${maxLoops > 1 ? 's' : ''}`,
+          }
           setRunning(false)
           setDone(true)
           return 0
         }
         playBeep(880, 0.25, 1)
-        notify('Focus time!', `Loop ${nextLoop}${cfg.infiniteLoop ? '' : `/${maxLoops}`}`)
+        pendingNotify = {
+          title: isThao ? 'Cố lên nào Thảo! ♡' : 'Focus time!',
+          body:  isThao ? `Loop ${nextLoop} — bé làm được mà! ♡` : `Loop ${nextLoop}${cfg.infiniteLoop ? '' : `/${maxLoops}`}`,
+        }
         setPhase('focus')
         setCurrentLoop(nextLoop)
         return toSeconds(cfg.focusMinutes, cfg.focusSeconds)
       }
     })
+
+    if (pendingNotify) notify(pendingNotify.title, pendingNotify.body)
   }, [playBeep, notify])
 
   useEffect(() => {
@@ -280,12 +379,21 @@ export default function App() {
 
   return (
     <div className={`app ${config ? phase : 'idle'}`}>
+      {theme === 'thao' && <FloatingHearts />}
+      {theme === 'thao' && done && <Confetti />}
       <header>
         <div className="header-left">
           <h1>FOCUS LOOP</h1>
-          <span className="player-tag">PLAYER 1</span>
+          <span className="player-tag">{theme === 'thao' ? 'THẢO ♡' : 'PLAYER 1'}</span>
         </div>
         <div className="header-actions">
+          <button
+            className="btn ghost small"
+            onClick={() => setStyleMode(m => m === '8bit' ? 'normal' : '8bit')}
+            title="Toggle 8-bit / Smooth style"
+          >
+            {styleMode === '8bit' ? '▣ PIXEL' : '● SMOOTH'}
+          </button>
           <ThemePicker theme={theme} onChange={setTheme} />
           {config && (
             <button className="btn ghost small" onClick={() => setShowConfig(s => !s)}>
